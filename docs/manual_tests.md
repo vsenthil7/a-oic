@@ -1,97 +1,201 @@
-# Manual Test Scenarios — A-OIC Kernel
+# Manual & Executable Validation — A‑OIC Kernel
 
-> **Purpose**
+> **Important clarification (read first)**
 >
-> This document preserves **human-understanding test scenarios** for the A‑OIC kernel.
-> These are **not executable tests**. Authoritative behavior is enforced via automated tests under `src/a_oic/tests/`.
+>This project uses **TWO kinds of tests**, both intentional:
 >
-> Manual scenarios exist to:
-> - Build intuition
-> - Explain behavior to reviewers/judges
-> - Support demos and walkthroughs
+>1. **Automated tests** → enforce truth (pytest, CI, non-negotiable)
+>2. **Executable manual tests** → teach humans (run locally, inspect output)
+>
+>Manual tests are **NOT markdown-only descriptions**.
+>They are **runnable commands with fixed inputs and expected outputs**.
+>
+>This document standardizes how every manual test works so there is:
+>- No confusion
+>- No copy–paste errors
+>- No guessing what to run
 
 ---
 
-## Scope
+## Rule of the System (LOCKED)
 
-These scenarios validate **deterministic policy behavior** implemented in:
+> Every automated test **MUST** have a corresponding **executable manual test**.
+>
+>The difference is:
+>- Automated test → `pytest` decides PASS/FAIL
+>- Manual test → **you run a command and read the output**
 
-- `a_oic.policy.decision.evaluate_incident`
-- `a_oic.core.evaluator.evaluate_incident_payload`
-
-No AI, orchestration, or external systems are involved at this stage.
+Both exist. Neither replaces the other.
 
 ---
 
-## Scenario 1 — SEV1 Incident without Runbook
+## Manual Tests ARE Executable — How
+
+Manual tests are executed in **one of three allowed ways**:
+
+1. `python -c "..."` (inline, zero files)
+2. `python -m a_oic.<module>` (preferred later)
+3. Temporary local script (NOT committed)
+
+No other forms are allowed.
+
+---
+
+# MANUAL TEST 1 — Policy Gate (SEV1, No Runbook)
+
+### What this validates
+Deterministic policy logic **without AI**.
 
 ### Input
-- `severity`: `SEV1`
-- `has_runbook`: `false`
+- Severity: `SEV1`
+- Runbook present: `False`
 
-### Expected Decision
-- **Decision**: `REQUIRE_APPROVAL`
-- **Reason**: `SEV1 incident without verified runbook`
+### Command (EXECUTABLE)
+```powershell
+python - << 'EOF'
+from a_oic.policy.decision import evaluate_incident
 
-### Rationale
-A SEV1 incident represents a critical production impact.
-Without a verified runbook (SOP), autonomous action is unsafe.
+result = evaluate_incident(severity="SEV1", has_runbook=False)
+print(result)
+EOF
+```
 
-The system must:
-- Fail closed
-- Escalate to Human‑in‑the‑Loop (HITL)
+### Expected Output
+```
+PolicyResult(
+  decision=Decision.REQUIRE_APPROVAL,
+  reason='SEV1 incident without verified runbook'
+)
+```
 
-This enforces operational governance and auditability.
+### Why this exists
+SEV1 + no SOP is **high-risk**.
+System must **fail closed** and require HITL.
 
 ---
 
-## Scenario 2 — SEV3 Incident with Runbook
+# MANUAL TEST 2 — Policy Gate (SEV3, With Runbook)
+
+### Command
+```powershell
+python - << 'EOF'
+from a_oic.policy.decision import evaluate_incident
+
+result = evaluate_incident(severity="SEV3", has_runbook=True)
+print(result)
+EOF
+```
+
+### Expected Output
+```
+PolicyResult(
+  decision=Decision.ALLOW,
+  reason='Low risk incident'
+)
+```
+
+### Why
+Low-risk + SOP → safe automation.
+
+---
+
+# MANUAL TEST 3 — AI Plan Validation (Missing Actions)
+
+### What this validates
+AI **cannot** omit required structure.
 
 ### Input
-- `severity`: `SEV3`
-- `has_runbook`: `true`
+```python
+bad_plan = {
+  "summary": "Restart service"
+}
+```
 
-### Expected Decision
-- **Decision**: `ALLOW`
-- **Reason**: `Low risk incident`
+### Command
+```powershell
+python - << 'EOF'
+from a_oic.adapters.ai_plan_validator import validate_ai_plan
+from a_oic.adapters.ai_adapter import AIPlanRejected
 
-### Rationale
-A SEV3 incident is low‑to‑moderate impact.
-With a verified runbook present, the risk is controlled.
+try:
+    validate_ai_plan({"summary": "Restart service"})
+except AIPlanRejected as e:
+    print("REJECTED:", e)
+EOF
+```
 
-The system may:
-- Proceed with automated execution
-- Skip human approval
+### Expected Output
+```
+REJECTED: AI plan schema violation: 'actions' is a required property
+```
 
-This supports fast recovery while preserving safety.
+### Why
+AI must produce **explicit executable intent**.
+Vague plans are rejected.
+
+---
+
+# MANUAL TEST 4 — AI Plan Validation (Illegal Action)
+
+### Input
+```python
+bad_plan = {
+  "summary": "Do something risky",
+  "actions": [{"type": "self_destruct", "target": "prod-db"}]
+}
+```
+
+### Command
+```powershell
+python - << 'EOF'
+from a_oic.adapters.ai_plan_validator import validate_ai_plan
+from a_oic.adapters.ai_adapter import AIPlanRejected
+
+try:
+    validate_ai_plan({
+        "summary": "Do something risky",
+        "actions": [{"type": "self_destruct", "target": "prod-db"}]
+    })
+except AIPlanRejected as e:
+    print("REJECTED:", e)
+EOF
+```
+
+### Expected Output
+```
+REJECTED: AI plan schema violation: 'self_destruct' is not one of ...
+```
+
+### Why
+AI **cannot invent new verbs**.
+Only whitelisted actions are allowed.
 
 ---
 
 ## Relationship to Automated Tests
 
-Each manual scenario corresponds to automated tests such as:
+| Automated Test | Manual Test |
+|---------------|------------|
+`test_policy_gate.py` | Manual Tests 1 & 2 |
+`test_ai_plan_validation.py` | Manual Tests 3 & 4 |
 
-- `test_sev1_without_runbook_requires_approval`
-- `test_sev3_is_allowed`
-
-Automated tests are the **source of truth**.
-Manual scenarios provide **explanatory context**, not enforcement.
-
----
-
-## Governance Note
-
-- No executable scripts are stored in this folder
-- No alternative execution paths are introduced
-- All supported behavior flows through the kernel
-
-This maintains a **single authoritative decision path**:
-
-```
-Schema → Policy → (AI later) → Orchestrate
-```
+Automated tests **prove enforcement**.
+Manual tests **prove understanding**.
 
 ---
 
+## Final Governance Statement
+
+- Manual tests are executable
+- Manual tests are reproducible
+- Manual tests never bypass policy
+- Manual tests never replace automation
+
+This ensures:
+- Humans understand the system
+- AI never gains authority
+- Reviewers can replay behavior
+
+---
 _Last updated: 31/01/2026_
 

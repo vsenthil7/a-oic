@@ -5,7 +5,11 @@ from pathlib import Path
 from a_oic.adapters.ai_adapter import AIPlanRejected
 
 
-_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "contracts" / "ai_plan.schema.json"
+_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "contracts"
+    / "ai_plan.schema.json"
+)
 
 
 def load_ai_plan_schema() -> dict:
