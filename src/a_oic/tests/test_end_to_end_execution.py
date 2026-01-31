@@ -11,7 +11,8 @@ def test_end_to_end_sev3_allow_executes_restart():
     # And: AI output is bounded and validated
     plan = validate_ai_plan(
         {
-            "summary": "Restart service safely",
+            "schema_version": "1.0",
+            "summary": "Restart service safely to recover production availability",
             "actions": [{"type": "restart", "target": "payments-api"}],
         }
     )

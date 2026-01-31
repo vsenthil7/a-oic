@@ -1,9 +1,9 @@
 import json
-from jsonschema import Draft202012Validator, ValidationError
 from pathlib import Path
+from jsonschema import Draft202012Validator
 
 from a_oic.adapters.ai_adapter import AIPlanRejected
-
+from a_oic.contracts.registry import is_supported
 
 _SCHEMA_PATH = (
     Path(__file__).resolve().parents[1]
@@ -22,6 +22,16 @@ def validate_ai_plan(plan: dict) -> dict:
     Enforces strict AI output validation.
     Any deviation is rejected before policy or execution.
     """
+
+    # ---- VERSION GATE (AUTHORITATIVE) ----
+    version = plan.get("schema_version")
+    if not version:
+        raise AIPlanRejected("Missing schema_version in AI plan")
+
+    if not is_supported(version):
+        raise AIPlanRejected(f"Unsupported AI plan schema_version: {version}")
+
+    # ---- SCHEMA VALIDATION ----
     schema = load_ai_plan_schema()
     validator = Draft202012Validator(schema)
 

@@ -6,7 +6,8 @@ def test_real_orchestrate_path_selected(monkeypatch):
     monkeypatch.setenv("USE_REAL_ORCHESTRATE", "true")
 
     plan = validate_ai_plan({
-        "summary": "Restart service safely",
+        "schema_version": "1.0",
+        "summary": "Restart service safely to recover production availability",
         "actions": [{"type": "restart", "target": "payments-api"}]
     })
 
