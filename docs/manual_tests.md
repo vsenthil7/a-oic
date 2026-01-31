@@ -180,6 +180,58 @@ print(validate_ai_plan(plan))"
 
 ---
 
+# MANUAL TEST 6 — End-to-End Execution (ALLOW → EXECUTED)
+
+### What this validates
+The **full execution spine** works end-to-end:
+
+Policy decision → validated AI plan → orchestrate execution → audit record
+
+No AI authority. No shortcuts.
+
+---
+
+### Input
+```python
+incident_id = "INC-DEMO-001"
+policy_decision = "ALLOW"
+policy_reason = "Low risk incident"
+
+plan = {
+  "summary": "Restart service safely",
+  "actions": [{"type": "restart", "target": "payments-api"}]
+}
+
+```
+
+### Command
+```powershell
+python -c "from a_oic.adapters.ai_plan_validator import validate_ai_plan; from a_oic.orchestrate.executor import LocalOrchestrateStub, execute_plan; plan=validate_ai_plan({'summary':'Restart service safely','actions':[{'type':'restart','target':'payments-api'}]}); out=execute_plan(incident_id='INC-DEMO-001',policy_decision='ALLOW',policy_reason='Low risk incident',validated_plan=plan,orchestrate=LocalOrchestrateStub()); print(out.record.to_dict()); print(out.orchestrate)"
+```
+
+
+### Expected Output
+```
+{
+  'incident_id': 'INC-DEMO-001',
+  'decision': 'ALLOW',
+  'actions': [{'type': 'restart', 'target': 'payments-api'}],
+  'status': ExecutionStatus.EXECUTED,
+  'created_at_utc': '...',
+  'reason': 'Low risk incident'
+}
+OrchestrateResult(ok=True, detail='Executed 1 action(s) for INC-DEMO-001')
+```
+
+### Why
+
+- **Confirms execution only happens after policy `ALLOW`**
+- **Proves orchestration is a replaceable boundary (stub ↔ real engine)**
+- **Demonstrates auditable, replayable execution state**
+- **Shows the kernel remains deterministic even with orchestration present**
+
+---
+
 ## Relationship to Automated Tests
 
 | Automated Test File | Covered Manual Tests |
@@ -187,6 +239,7 @@ print(validate_ai_plan(plan))"
 | `test_policy_gate.py` | Manual Tests 1 & 2 |
 | `test_ai_plan_validation.py` | Manual Tests 3 & 4 |
 | `test_ai_plan_acceptance.py` | Manual Test 5 |
+| `test_end_to_end_execution.py` | Manual Test 6 |
 
 
 Automated tests **prove enforcement**.
