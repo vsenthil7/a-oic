@@ -16,3 +16,8 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only exploration
+scratch_manual_run.py
+manual_test/
+src/a_oic.egg-info/
