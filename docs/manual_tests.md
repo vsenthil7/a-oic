@@ -31,6 +31,9 @@ Both exist. Neither replaces the other.
 
 ## Manual Tests ARE Executable — How
 
+> These commands are intentionally written to be **PowerShell-safe and copy-pasteable on Windows**, which is the lowest common denominator for reviewers.
+
+
 Manual tests are executed in **one of three allowed ways**:
 
 1. `python -c "..."` (inline, zero files)
@@ -52,12 +55,7 @@ Deterministic policy logic **without AI**.
 
 ### Command (EXECUTABLE)
 ```powershell
-python - << 'EOF'
-from a_oic.policy.decision import evaluate_incident
-
-result = evaluate_incident(severity="SEV1", has_runbook=False)
-print(result)
-EOF
+python -c "from a_oic.policy.decision import evaluate_incident; result=evaluate_incident(severity='SEV1', has_runbook=False); print(result)"
 ```
 
 ### Expected Output
@@ -78,12 +76,7 @@ System must **fail closed** and require HITL.
 
 ### Command
 ```powershell
-python - << 'EOF'
-from a_oic.policy.decision import evaluate_incident
-
-result = evaluate_incident(severity="SEV3", has_runbook=True)
-print(result)
-EOF
+python -c "from a_oic.policy.decision import evaluate_incident; result=evaluate_incident(severity='SEV3', has_runbook=True); print(result)"
 ```
 
 ### Expected Output
@@ -113,15 +106,9 @@ bad_plan = {
 
 ### Command
 ```powershell
-python - << 'EOF'
-from a_oic.adapters.ai_plan_validator import validate_ai_plan
-from a_oic.adapters.ai_adapter import AIPlanRejected
-
-try:
-    validate_ai_plan({"summary": "Restart service"})
-except AIPlanRejected as e:
-    print("REJECTED:", e)
-EOF
+python -c "from a_oic.adapters.ai_plan_validator import validate_ai_plan; from a_oic.adapters.ai_adapter import AIPlanRejected; 
+try: validate_ai_plan({'summary':'Restart service'})
+except AIPlanRejected as e: print('REJECTED:', e)"
 ```
 
 ### Expected Output
@@ -147,18 +134,9 @@ bad_plan = {
 
 ### Command
 ```powershell
-python - << 'EOF'
-from a_oic.adapters.ai_plan_validator import validate_ai_plan
-from a_oic.adapters.ai_adapter import AIPlanRejected
-
-try:
-    validate_ai_plan({
-        "summary": "Do something risky",
-        "actions": [{"type": "self_destruct", "target": "prod-db"}]
-    })
-except AIPlanRejected as e:
-    print("REJECTED:", e)
-EOF
+python -c "from a_oic.adapters.ai_plan_validator import validate_ai_plan; from a_oic.adapters.ai_adapter import AIPlanRejected;
+try: validate_ai_plan({'summary':'Do something risky','actions':[{'type':'self_destruct','target':'prod-db'}]})
+except AIPlanRejected as e: print('REJECTED:', e)"
 ```
 
 ### Expected Output
@@ -172,12 +150,44 @@ Only whitelisted actions are allowed.
 
 ---
 
+# MANUAL TEST 5 — AI Plan Validation (VALID → ACCEPT)
+
+### Input
+```python
+{
+  "summary": "Restart service safely",
+  "actions": [{"type": "restart", "target": "payments-api"}]
+}
+```
+
+### Command
+```powershell
+python -c "from a_oic.adapters.ai_plan_validator import validate_ai_plan;
+plan={'summary':'Restart service safely','actions':[{'type':'restart','target':'payments-api'}]};
+print(validate_ai_plan(plan))"
+```
+
+### Expected Output
+```
+{'summary': 'Restart service safely', 'actions': [{'type': 'restart', 'target': 'payments-api'}]}
+```
+
+### Why
+
+- **Confirms AI output can pass when bounded**
+- **Demonstrates AI suggestion ≠ execution**
+- **Reinforces that policy & orchestration decide next**
+
+---
+
 ## Relationship to Automated Tests
 
-| Automated Test | Manual Test |
-|---------------|------------|
-`test_policy_gate.py` | Manual Tests 1 & 2 |
-`test_ai_plan_validation.py` | Manual Tests 3 & 4 |
+| Automated Test File | Covered Manual Tests |
+|---------------------|----------------------|
+| `test_policy_gate.py` | Manual Tests 1 & 2 |
+| `test_ai_plan_validation.py` | Manual Tests 3 & 4 |
+| `test_ai_plan_acceptance.py` | Manual Test 5 |
+
 
 Automated tests **prove enforcement**.
 Manual tests **prove understanding**.
