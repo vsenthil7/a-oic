@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "a-oic/incident.schema.json",
+  "title": "Incident",
+  "type": "object",
+  "required": [
+    "incident_id",
+    "source",
+    "timestamp",
+    "severity",
+    "service",
+    "summary"
+  ],
+  "properties": {
+    "incident_id": {
+      "type": "string",
+      "pattern": "^INC-[0-9]{6}$"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["alert", "deploy", "ticket", "manual"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["SEV1", "SEV2", "SEV3", "SEV4"]
+    },
+    "service": {
+      "type": "string",
+      "minLength": 2
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
