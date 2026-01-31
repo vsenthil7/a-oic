@@ -1,9 +1,28 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Protocol
 
 from a_oic.state.execution_record import ExecutionRecord, ExecutionStatus, now_utc_iso
+from a_oic.orchestrate.watsonx_adapter import WatsonxOrchestrateAdapter
+
+
+def _select_orchestrate(orchestrate):
+    """
+    Selects orchestrate adapter.
+    Priority:
+    1. Explicitly passed orchestrate
+    2. Feature-flagged real watsonx adapter
+    3. Local stub (default)
+    """
+    if orchestrate is not None:
+        return orchestrate
+
+    if os.getenv("USE_REAL_ORCHESTRATE") == "true":
+        return WatsonxOrchestrateAdapter(client=None)  # real client injected later
+
+    return LocalOrchestrateStub()
 
 
 @dataclass(frozen=True)
@@ -27,7 +46,6 @@ class LocalOrchestrateStub:
     Produces auditable output with zero external dependency.
     """
     def execute_actions(self, incident_id: str, actions: List[Dict[str, Any]]) -> OrchestrateResult:
-        # Minimal "execution": accept known action types only
         allowed = {"scale", "rollback", "restart", "verify"}
         for a in actions:
             if a.get("type") not in allowed:
@@ -47,7 +65,7 @@ def execute_plan(
     policy_decision: str,
     policy_reason: str,
     validated_plan: Dict[str, Any],
-    orchestrate: OrchestrateClient,
+    orchestrate: Optional[OrchestrateClient],
 ) -> ExecutionOutcome:
     """
     Execution spine:
@@ -55,11 +73,18 @@ def execute_plan(
     - Policy decision is authoritative
     - Orchestration boundary executes only when allowed
     """
+
+    orchestrate = _select_orchestrate(orchestrate)
+
     actions: List[Dict[str, Any]] = list(validated_plan.get("actions", []))
 
     # Fail-closed: if decision isn't ALLOW, do not execute
     if policy_decision != "ALLOW":
-        status = ExecutionStatus.REQUIRE_APPROVAL if policy_decision == "REQUIRE_APPROVAL" else ExecutionStatus.BLOCKED
+        status = (
+            ExecutionStatus.REQUIRE_APPROVAL
+            if policy_decision == "REQUIRE_APPROVAL"
+            else ExecutionStatus.BLOCKED
+        )
         rec = ExecutionRecord(
             incident_id=incident_id,
             decision=policy_decision,
@@ -89,7 +114,7 @@ def execute_plan(
         actions=actions,
         status=final_status,
         created_at_utc=rec_pending.created_at_utc,
-        reason=result.detail if not result.ok else policy_reason,
+        reason=policy_reason if result.ok else result.detail,
     )
 
     return ExecutionOutcome(record=rec_final, orchestrate=result)

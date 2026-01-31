@@ -232,6 +232,66 @@ OrchestrateResult(ok=True, detail='Executed 1 action(s) for INC-DEMO-001')
 
 ---
 
+
+---
+# MANUAL TEST 7 — Orchestrate Adapter Selection (Feature Flag)
+
+### What this validates
+
+- **Orchestration is a `replaceable boundary`**
+- **Kernel logic does not change when execution backend changes**
+- **Feature flags select runtime behavior, not code paths**
+
+---
+### Preconditions
+```powershell
+$env:USE_REAL_ORCHESTRATE="true"
+```
+
+### Input
+```python
+incident_id = "INC-ORCH-001"
+policy_decision = "ALLOW"
+policy_reason = "Low risk incident"
+
+plan = {
+  "summary": "Restart service safely",
+  "actions": [{"type": "restart", "target": "payments-api"}]
+}
+```
+
+### Command
+```powershell
+python -c "from a_oic.adapters.ai_plan_validator import validate_ai_plan; \
+from a_oic.orchestrate.executor import execute_plan; \
+plan=validate_ai_plan({'summary':'Restart service safely','actions':[{'type':'restart','target':'payments-api'}]}); \
+out=execute_plan(incident_id='INC-ORCH-001',policy_decision='ALLOW',policy_reason='Low risk incident',validated_plan=plan,orchestrate=None); \
+print(out.record.to_dict()); print(out.orchestrate)"
+```
+
+
+### Expected Output
+```
+{
+  'incident_id': 'INC-ORCH-001',
+  'decision': 'ALLOW',
+  'actions': [{'type': 'restart', 'target': 'payments-api'}],
+  'status': ExecutionStatus.EXECUTED,
+  'created_at_utc': '...',
+  'reason': 'Low risk incident'
+}
+OrchestrateResult(ok=True, detail='watsonx orchestrate executed restart for INC-ORCH-001')
+```
+
+### Why
+
+- **Confirms adapter selection via environment, not code**
+- **Proves IBM execution can be wired without touching kernel**
+- **Demonstrates enterprise-safe swap (stub → real engine)**
+- **Guarantees policy + audit stay deterministic**
+
+---
+
 ## Relationship to Automated Tests
 
 | Automated Test File | Covered Manual Tests |
@@ -240,6 +300,7 @@ OrchestrateResult(ok=True, detail='Executed 1 action(s) for INC-DEMO-001')
 | `test_ai_plan_validation.py` | Manual Tests 3 & 4 |
 | `test_ai_plan_acceptance.py` | Manual Test 5 |
 | `test_end_to_end_execution.py` | Manual Test 6 |
+| `test_orchestrate_adapter_switch.py` | Manual Test 7 |
 
 
 Automated tests **prove enforcement**.
