@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "a-oic/ai-plan.schema.json",
+  "title": "AIResponsePlan",
+  "type": "object",
+  "required": ["summary", "actions"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 20
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "target"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["scale", "rollback", "restart", "verify"]
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}
